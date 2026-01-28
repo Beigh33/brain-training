@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Brain Training</title>
+
+<style>
+:root{
+--bg:#020617;
+--card:#0f172a;
+--primary:#38bdf8;
+--success:#22c55e;
+--danger:#ef4444;
+--accent:#facc15;
+}
+*{box-sizing:border-box}
+body{
+margin:0;
+font-family:system-ui,Arial;
+background:linear-gradient(135deg,#020617,#0f172a);
+color:#fff;
+display:flex;
+justify-content:center;
+}
+.app{width:100%;max-width:420px;padding:16px}
+h1,h2{text-align:center}
+.card{
+background:var(--card);
+border-radius:18px;
+padding:16px;
+box-shadow:0 10px 30px rgba(0,0,0,.4);
+margin-bottom:14px;
+}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{
+border:none;border-radius:14px;padding:14px;
+font-size:16px;font-weight:600;
+cursor:pointer;transition:.2s
+}
+.mode{background:linear-gradient(135deg,var(--primary),#60a5fa);color:#000}
+.option{background:#020617;color:#fff;margin-top:10px}
+.option.correct{background:var(--success)}
+.option.wrong{background:var(--danger)}
+button:active{transform:scale(.96)}
+.hidden{display:none}
+.top{display:flex;justify-content:space-between;font-weight:600}
+.progress{height:8px;background:#020617;border-radius:10px;overflow:hidden;margin:8px 0}
+.progress div{height:100%;background:var(--accent);width:0%}
+.timer{color:var(--accent)}
+.level{font-size:14px;text-align:center;color:#94a3b8}
+.leaderboard div{border-bottom:1px solid #334155;padding:6px;font-size:14px}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<h1>🧠 Brain Training</h1>
+<div class="level" id="levelInfo"></div>
+
+<div id="home" class="card">
+<h2>Select Mode</h2>
+<div class="grid">
+<button class="mode" onclick="start('GK')">📚 GK</button>
+<button class="mode" onclick="start('Math')">🧮 Math</button>
+<button class="mode" onclick="start('Tech')">💻 Tech</button>
+<button class="mode" onclick="start('Movies')">🎬 Movies</button>
+<button class="mode" onclick="start('Sports')">🏏 Sports</button>
+<button class="mode" onclick="start('Mixed')">🔥 Mixed</button>
+</div>
+</div>
+
+<div id="game" class="card hidden">
+<div class="top">
+<span id="qCount">1/10</span>
+<span class="timer">⏱ <span id="time">15</span></span>
+</div>
+<div class="progress"><div id="bar"></div></div>
+<h2 id="question"></h2>
+<div id="options"></div>
+</div>
+
+<div id="result" class="card hidden">
+<h2>Game Over 🎉</h2>
+<p id="scoreText"></p>
+<button onclick="saveScore()">Save Score</button>
+<button onclick="back()">Play Again</button>
+</div>
+
+<div class="card">
+<h2>🏆 Leaderboard</h2>
+<div id="lb" class="leaderboard"></div>
+</div>
+
+</div>
+
+<script>
+// 🔊 SOUNDS
+const sndClick=new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+const sndOk=new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+const sndBad=new Audio("https://actions.google.com/sounds/v1/cartoon/boing.ogg");
+
+// QUESTIONS
+const bank={
+GK:[
+{q:"Capital of India?",a:["Delhi","Mumbai","Kolkata","Chennai"],c:0},
+{q:"National animal?",a:["Lion","Tiger","Elephant","Horse"],c:1}
+],
+Math:[
+{q:"9+6=?",a:["13","14","15","16"],c:2},
+{q:"8×4=?",a:["24","28","32","36"],c:2}
+],
+Tech:[
+{q:"HTML stands for?",a:["Hyper Text Markup Language","High Tool","None","Hyperlink"],c:0},
+{q:"Brain of computer?",a:["RAM","CPU","SSD","GPU"],c:1}
+],
+Movies:[
+{q:"KGF hero?",a:["Yash","Prabhas","Allu","Salman"],c:0},
+{q:"Bollywood city?",a:["Delhi","Mumbai","Pune","Chennai"],c:1}
+],
+Sports:[
+{q:"2011 WC winner?",a:["India","Aus","SL","Eng"],c:0},
+{q:"National sport?",a:["Cricket","Hockey","Football","Kabaddi"],c:1}
+]
+};
+
+// GAME STATE
+let list=[],i=0,score=0,timer,intv,mode="";
+let xp=+localStorage.getItem("xp")||0;
+let level=Math.floor(xp/100)+1;
+
+function updateLevel(){
+level=Math.floor(xp/100)+1;
+levelInfo.innerText=`⭐ Level ${level} | XP ${xp}`;
+localStorage.setItem("xp",xp);
+}
+updateLevel();
+
+function start(m){
+sndClick.play();
+mode=m;
+list=[];
+if(m==="Mixed"){Object.values(bank).forEach(v=>list.push(...v))}
+else list=[...bank[m]];
+list=list.sort(()=>0.5-Math.random()).slice(0,10);
+i=0;score=0;
+home.classList.add("hidden");
+game.classList.remove("hidden");
+load();
+}
+
+function load(){
+if(i>=list.length){end();return;}
+qCount.innerText=`${i+1}/10`;
+bar.style.width=(i*10)+"%";
+time.innerText=15;
+question.innerText=list[i].q;
+options.innerHTML="";
+list[i].a.forEach((t,idx)=>{
+let b=document.createElement("button");
+b.className="option";
+b.innerText=t;
+b.onclick=()=>check(idx,b);
+options.appendChild(b);
+});
+clearInterval(intv);
+timer=15;
+intv=setInterval(()=>{
+timer--;
+time.innerText=timer;
+if(timer<=0){clearInterval(intv);i++;load();}
+},1000);
+}
+
+function check(ans,btn){
+clearInterval(intv);
+sndClick.play();
+if(ans===list[i].c){
+btn.classList.add("correct");
+sndOk.play();
+score++;xp+=10;
+}else{
+btn.classList.add("wrong");
+sndBad.play();
+}
+setTimeout(()=>{i++;load();},600);
+}
+
+function end(){
+game.classList.add("hidden");
+result.classList.remove("hidden");
+scoreText.innerText=`Score: ${score}/10 | XP +${score*10}`;
+updateLevel();
+// 💰 INTERSTITIAL AD PLACEHOLDER
+// showInterstitialAd();
+}
+
+function back(){
+result.classList.add("hidden");
+home.classList.remove("hidden");
+}
+
+function saveScore(){
+let d=JSON.parse(localStorage.getItem("scores")||"[]");
+d.push({m:mode,s:score,l:level});
+d.sort((a,b)=>b.s-a.s);
+d=d.slice(0,10);
+localStorage.setItem("scores",JSON.stringify(d));
+renderLB();
+}
+
+function renderLB(){
+lb.innerHTML="";
+(JSON.parse(localStorage.getItem("scores")||"[]")).forEach(x=>{
+let div=document.createElement("div");
+div.innerText=`${x.m} | ${x.s}/10 | Lv ${x.l}`;
+lb.appendChild(div);
+});
+}
+renderLB();
+
+// 💰 ADMOB PLACEHOLDERS (SAFE)
+// function showInterstitialAd(){}
+// function showRewardedAd(){}
+
+</script>
+</body>
+</html>
